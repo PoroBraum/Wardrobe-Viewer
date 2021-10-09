@@ -41,7 +41,7 @@ function onClickRefresh(oBtn) {
 
 function onClickCopy(sChar) {
     alert('Copied to Clipboard');
-    navigator.clipboard.writeText(oClipboard[sChar]);
+    navigator.clipboard.writeText(oClipboard[sChar].sort(sortClipboard).map(e => e[Object.keys(e)]).join("\n"));
 }
 
 function onChangeAPIKey() {
@@ -90,54 +90,122 @@ function getEquipmentByCharacter(sCharacter, aEquipment) {
 }
 
 function getSkinsAndDyes(sCharacter) {
+    let aAPIRequestsItems = [],
+        aAPIRequestsSkins = [],
+        aAPIRequestsColors = [],
+        aAPIRequestsInfusions = [];
+
     for (const iterator in oData[sCharacter]) {
         let iSkinID = oData[sCharacter][iterator].skinID;
         let iItemID = oData[sCharacter][iterator].itemID;
         let aDyes = oData[sCharacter][iterator].dyes;
         let aInfusions = oData[sCharacter][iterator].infusions;
 
-        let iRequestID;
-        let sRequestEndpoint;
-
         if (iSkinID) {
-            iRequestID = iSkinID;
-            sRequestEndpoint = 'skins';
+            aAPIRequestsSkins.push(iSkinID);
         } else if (iItemID) {
-            iRequestID = iItemID;
-            sRequestEndpoint = 'items';
+            aAPIRequestsItems.push(iItemID);
         }
 
-        $.ajax({ url: 'https://api.guildwars2.com/v2/' + sRequestEndpoint + '/' + iRequestID, iterator: iterator, character: sCharacter, dyes: aDyes, infusions: aInfusions }).done(function (data) {
-            oData[this.character][this.iterator].name = data.name;
-            oData[this.character][this.iterator].icon = data.icon;
-
-            if (this.dyes) {
-                for (let i = 0; i < this.dyes.length; i++) {
-                    const dye = this.dyes[i];
-                    if (dye) {
-                        $.ajax({ url: 'https://api.guildwars2.com/v2/colors/' + dye, iterator: iterator, character: sCharacter, i: i }).done(function (data) {
-                            oData[this.character][this.iterator].dyes[i] = { name: data.name, rgb: data.cloth.rgb };
-                            storeData();
-                        })
-                    }
+        if (aDyes) {
+            for (let i = 0; i < aDyes.length; i++) {
+                const dye = aDyes[i];
+                if (dye) {
+                    aAPIRequestsColors.push(dye);
                 }
             }
+        }
 
-            if (this.infusions) {
-                for (let i = 0; i < this.infusions.length; i++) {
-                    const infusion = this.infusions[i];
-                    if (infusion) {
-                        $.ajax({ url: 'https://api.guildwars2.com/v2/items/' + infusion, iterator: iterator, character: sCharacter, i: i }).done(function (data) {
-                            oData[this.character][this.iterator].infusions[i] = { name: data.name, icon: data.icon };
-                            storeData();
-                        })
-                    }
+        if (aInfusions) {
+            for (let i = 0; i < aInfusions.length; i++) {
+                const infusion = aInfusions[i];
+                if (infusion) {
+                    aAPIRequestsInfusions.push(infusion);
                 }
-            } else {
-                storeData();
             }
+        }
+    }
+
+    aAPIRequestsSkins = Array.from(new Set(aAPIRequestsSkins));
+    if (aAPIRequestsSkins.length) {
+        $.ajax({ url: 'https://api.guildwars2.com/v2/skins?ids=' + aAPIRequestsSkins.join(), character: sCharacter }).done(function (data) {
+            mapData(sCharacter, 'skins', data);
         })
     }
+    aAPIRequestsItems = Array.from(new Set(aAPIRequestsItems));
+    if (aAPIRequestsItems.length) {
+        $.ajax({ url: 'https://api.guildwars2.com/v2/items?ids=' + aAPIRequestsItems.join(), character: sCharacter }).done(function (data) {
+            mapData(sCharacter, 'items', data);
+        })
+    }
+
+    aAPIRequestsColors = Array.from(new Set(aAPIRequestsColors));
+    if (aAPIRequestsColors.length) {
+        $.ajax({ url: 'https://api.guildwars2.com/v2/colors?ids=' + aAPIRequestsColors.join(), character: sCharacter }).done(function (data) {
+            mapData(sCharacter, 'colors', data);
+        })
+    }
+
+    aAPIRequestsInfusions = Array.from(new Set(aAPIRequestsInfusions));
+    if (aAPIRequestsInfusions.length) {
+        $.ajax({ url: 'https://api.guildwars2.com/v2/items?ids=' + aAPIRequestsInfusions.join(), character: sCharacter }).done(function (data) {
+            mapData(sCharacter, 'infusions', data);
+        })
+    }
+}
+
+function mapData(sCharacter, sType, aData) {
+    for (const iterator in oData[sCharacter]) {
+        if (sType === "skins") {
+
+            if (oData[sCharacter][iterator].skinID) {
+                for (let i = 0; i < aData.length; i++) {
+                    const e = aData[i];
+                    if (e.id === oData[sCharacter][iterator].skinID) {
+                        oData[sCharacter][iterator].name = e.name;
+                        oData[sCharacter][iterator].icon = e.icon;
+                    }
+                }
+            }
+        } else if (sType === "items") {
+            if (oData[sCharacter][iterator].itemID) {
+                for (let i = 0; i < aData.length; i++) {
+                    const e = aData[i];
+                    if (e.id === oData[sCharacter][iterator].itemID) {
+                        oData[sCharacter][iterator].name = e.name;
+                        oData[sCharacter][iterator].icon = e.icon;
+                    }
+                }
+            }
+        } else if (sType === "infusions") {
+            if (oData[sCharacter][iterator].infusions) {
+                for (let k = 0; k < oData[sCharacter][iterator].infusions.length; k++) {
+                    const infusion = oData[sCharacter][iterator].infusions[k];
+                    for (let i = 0; i < aData.length; i++) {
+                        const e = aData[i];
+                        if (e.id === infusion) {
+                            oData[sCharacter][iterator].infusions[k] = { name: e.name, icon: e.icon };
+                        }
+                    }
+                }
+            }
+        } else if (sType === "colors") {
+            if (oData[sCharacter][iterator].dyes) {
+                for (let k = 0; k < oData[sCharacter][iterator].dyes.length; k++) {
+                    const dye = oData[sCharacter][iterator].dyes[k];
+                    if (dye) {
+                        for (let i = 0; i < aData.length; i++) {
+                            const e = aData[i];
+                            if (e.id === dye) {
+                                oData[sCharacter][iterator].dyes[k] = { name: e.name, rgb: e.cloth.rgb };
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    storeData();
 }
 
 function storeData() {
@@ -153,7 +221,7 @@ function writeDOM() {
     let i = 0;
     for (const char in oDataStored) {
         const sChar = char.replace(/[^\w\d]/gi, "") + i;
-        oClipboard[sChar] = 'Slot\tName\tDyes\tInfusions\n';
+        oClipboard[sChar] = [{ Header: 'Slot\tName\tDyes\tInfusions' }];
 
         $("#charList").append(`<li><a href="#char-${sChar}">${char}</li>`);
 
@@ -169,7 +237,9 @@ function writeDOM() {
                 <div class="col-3"> ${getInfusions(oItem.infusions) || ""}</div>
             </div>`);
 
-            oClipboard[sChar] += item + '\t' + oItem.name + '\t' + formatDyes(oItem.dyes) + '\t' + formatInfusions(oItem.infusions) + '\n';
+            let oTemp = {};
+            oTemp[item] = item + '\t' + oItem.name + '\t' + formatDyes(oItem.dyes) + '\t' + formatInfusions(oItem.infusions);
+            oClipboard[sChar].push(oTemp);
         }
 
         $("#tabs").append(`
@@ -200,8 +270,23 @@ function formatInfusions(aInfusions) {
     return "";
 }
 
+function sortClipboard(a,b){
+    let mSlotValues = getSlotValues();
+    let valueSlotA = mSlotValues[Object.keys(a)[0]];
+    let valueSlotB = mSlotValues[Object.keys(b)[0]];
+    return valueSlotA - valueSlotB;
+}
+
 function sortItems(a, b) {
-    mSlotValues = {
+    let mSlotValues = getSlotValues();
+    let valueSlotA = mSlotValues[$(a).data('slot')];
+    let valueSlotB = mSlotValues[$(b).data('slot')];
+    return valueSlotA - valueSlotB;
+}
+
+function getSlotValues() {
+    return {
+        'Header': -1,
         'Helm': 0,
         'Shoulders': 1,
         'Coat': 2,
@@ -214,10 +299,6 @@ function sortItems(a, b) {
         'WeaponB1': 9,
         'WeaponB2': 10
     }
-
-    let valueSlotA = mSlotValues[$(a).data('slot')];
-    let valueSlotB = mSlotValues[$(b).data('slot')];
-    return valueSlotA - valueSlotB;
 }
 
 function getDyes(aDyes) {
@@ -225,7 +306,7 @@ function getDyes(aDyes) {
         let aDyeNames = [];
         for (let i = 0; i < aDyes.length; i++) {
             const dye = aDyes[i];
-            if (dye) {
+            if (dye && dye.rgb) {
                 aDyeNames.push(`
                     <span style="color: ${getBestColor(dye.rgb)}; background-color: rgb(${dye.rgb.join()})">${dye.name}</span>
                 `);
