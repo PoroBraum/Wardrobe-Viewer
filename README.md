@@ -2,7 +2,7 @@
 
 [Wardrobe Viewer](https://porobraum.github.io/Wardrobe-Viewer/Wardrobe%20Viewer.html)
 
-[Reddit](https://porobraum.github.io/Wardrobe-Viewer/Wardrobe%20Viewer.html)
+[Reddit](https://reddit.com/r/Guildwars2/comments/q4ki3t/release_wardrobe_viewer_copy_save_share_the_look)
 
 # Getting started
 
