@@ -24,12 +24,15 @@ $(document).ready(function () {
 })
 
 function main() {
+    oClipboard = {};
+
     getData().done(function (characterData) {
         characterData.forEach(character => {
+            addAdditionalInformation(character);
             getEquipmentByCharacter(character.name, character.equipment);
         });
         writeDOM();
-    }).catch(function (oResponse) { debugger; alert(oResponse.responseJSON.text) })
+    }).catch(function (oResponse) { alert(oResponse.responseJSON.text) })
 }
 
 function onClickRefresh(oBtn) {
@@ -39,9 +42,27 @@ function onClickRefresh(oBtn) {
     main();
 }
 
+function onClickSave(sChar) {
+    let sText = getClipboardText(sChar);
+
+    if (sText) {
+        saveAs(new Blob([sText],
+            { type: "text/plain;charset=utf-8" }), sChar + ".txt");
+    } else { alert("Please refresh!") }
+}
+
 function onClickCopy(sChar) {
-    alert('Copied to Clipboard');
-    navigator.clipboard.writeText(oClipboard[sChar].sort(sortClipboard).map(e => e[Object.keys(e)]).join("\n"));
+    let sText = getClipboardText(sChar);
+
+    if (sText) {
+        navigator.clipboard.writeText(sText);
+        alert('Copied to Clipboard');
+    } else { alert("Please refresh!") }
+}
+
+function getClipboardText(sChar) {
+    if (oClipboard[sChar]) return oClipboard[sChar].sort(sortClipboard).map(e => e[Object.keys(e)]).join("\n");
+    return undefined;
 }
 
 function onChangeAPIKey() {
@@ -63,6 +84,10 @@ function loadAPIKey() {
 function setAPIKey() {
     localStorage.APIKey = $(document.getElementById("inputAPIKey")).val();
     sAPIKey = localStorage.APIKey;
+}
+
+function addAdditionalInformation(oChar) {
+    oClipboard[formatCharName(oChar.name)] = [{ Header: 'Slot\tName\tDyes\tInfusions' }, { Misc: `Race\tGender\tProfession\n${oChar.race}\t${oChar.gender}\t${oChar.profession}\n` }];
 }
 
 function getEquipmentByCharacter(sCharacter, aEquipment) {
@@ -212,18 +237,20 @@ function storeData() {
     localStorage.oData = JSON.stringify(oData);
 }
 
+function formatCharName(sName) {
+    return sName.replace(/[^\w\d]/gi, "");
+}
+
 function writeDOM() {
     const oDataStored = JSON.parse(localStorage.oData);
-    oClipboard = {};
 
     $("#tabs").html('<ul id="charList"></ul>');
 
     let i = 0;
     for (const char in oDataStored) {
-        const sChar = char.replace(/[^\w\d]/gi, "") + i;
-        oClipboard[sChar] = [{ Header: 'Slot\tName\tDyes\tInfusions' }];
+        const sChar = formatCharName(char);
 
-        $("#charList").append(`<li><a href="#char-${sChar}">${char}</li>`);
+        $("#charList").append(`<li><a href="#char-${sChar + i}">${char}</li>`);
 
         let aItems = [];
         for (const item in oDataStored[char]) {
@@ -239,12 +266,18 @@ function writeDOM() {
 
             let oTemp = {};
             oTemp[item] = item + '\t' + oItem.name + '\t' + formatDyes(oItem.dyes) + '\t' + formatInfusions(oItem.infusions);
-            oClipboard[sChar].push(oTemp);
+            if (oClipboard[sChar]) oClipboard[sChar].push(oTemp);
         }
 
         $("#tabs").append(`
-        <div id="char-${sChar}">${aItems.sort(sortItems).join("")}
-            <button onclick="onClickCopy('${sChar}')" class="btn btn-secondary position-absolute bottom-0 end-0"><i class="bi bi-clipboard-check"></i> Copy to Clipboard</button>
+        <div id="char-${sChar + i}">
+            ${aItems.sort(sortItems).join("")}
+            <div class="row">
+            <div class="col">
+            <button onclick="onClickSave('${sChar}')" class="btn btn-secondary float-end mb-2"><i class="bi bi-save"></i> Download .txt</button>
+            </div></div>
+            <div class="row"> <div class="col">
+            <button onclick="onClickCopy('${sChar}')" class="btn btn-secondary float-end"><i class="bi bi-clipboard-check"></i> Copy to Clipboard</button></div></div>
         </div>`);
 
         i++;
@@ -270,7 +303,7 @@ function formatInfusions(aInfusions) {
     return "";
 }
 
-function sortClipboard(a,b){
+function sortClipboard(a, b) {
     let mSlotValues = getSlotValues();
     let valueSlotA = mSlotValues[Object.keys(a)[0]];
     let valueSlotB = mSlotValues[Object.keys(b)[0]];
@@ -286,6 +319,7 @@ function sortItems(a, b) {
 
 function getSlotValues() {
     return {
+        'Misc': -2,
         'Header': -1,
         'Helm': 0,
         'Shoulders': 1,
